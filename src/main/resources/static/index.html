@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style>
+        table {
+            font-family: arial, sans-serif;
+            border-collapse: collapse;
+        }
+
+        td, th {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 10px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #dddddd;
+        }
+
+        tr.table_free:nth-child(even) {
+            background-color: White;
+        }
+
+        td.nbar {
+            border-style: none;
+            padding: 0;
+            padding-bottom: 5px;
+        }
+
+        td.user_title {
+            background-color: White;
+            font-size: 140%;
+            font-weight: bold;
+            vertical-align: middle;
+            padding: 12px;
+            border-left-style: none;
+            border-right-style: none;
+        }
+
+        table.buttons {
+            border-collapse: separate;
+            border-spacing: 7px;
+        }
+
+        th.button {
+            text-align: center;
+            vertical-align: middle;
+            padding: 12px;
+            font-size: 120%;
+            font-weight: normal;
+            border: 1px solid black;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        th.cbutton {
+            text-align: center;
+            vertical-align: middle;
+            padding: 12px;
+            font-size: 120%;
+            border: 1px solid black;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+        }
+
+        td.button {
+            width: 5px;
+        }
+
+        button {
+            font-size: 120%;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        input {
+            border: none;
+            border: 1px solid black;
+            border-radius: 5px;
+            font-size: 120%;
+        }
+    </style>
+</head>
+<body>
+
+<h2 id="h2"></h2>
+<table id="disksList">
+
+</table>
+
+<table id="usersList">
+
+</table>
+
+<div style="display: none;">
+    <form action="#">
+        <input id="user_name" placeholder="User name">
+        <input id="user_login" placeholder="User login">
+        <input id="user_password" placeholder="User password">
+        <button onclick="createUser()">Create user</button>
+    </form>
+
+    <input id="search_field">
+    <button onclick="searchByLogin()">Search by Login</button>
+</div>
+<script>
+
+    function getNavigationBar( mode ) {
+        return '<tr><td colspan="3" class="nbar">' +
+            '<table class="buttons"><tr>' +
+            '<th class="' + (mode==1 ? 'c' : '') + 'button" onclick="loadMyDisks();">Все мои Диски</th>' +
+            '<th class="' + (mode==2 ? 'c' : '') + 'button" onclick="loadMyTakenDisks();">Отданные друзьям</th>' +
+            '<th class="' + (mode==3 ? 'c' : '') + 'button" onclick="loadNotMyTakenDisks();">Взятые у друзей</th>' +
+            '<th class="' + (mode==4 ? 'c' : '') + 'button" onclick="loadFreeDisks();">Что еще можно взять</th>' +
+            '<th class="button" onclick="logout();">Выход</th>' +
+            '</tr></table>' +
+            '</td></tr>';
+    }
+
+    function getLoginForm( message ) {
+        document.getElementById("h2").innerHTML = "Вход в систему:"
+        return '<tr><td colspan="2" style="color: red;">' + message + '</td></tr>\n' +
+            '<tr>\n' +
+            '<td>Логин</td>\n' +
+            '<td><input type="text" id="u_login" form="loginForm"></td>\n' +
+            '</tr>\n' +
+            '<tr><td>Пароль</td>\n' +
+            '<td><input type="password" id="u_password" form="loginForm"></td>\n' +
+            '</tr>\n' +
+            '<tr>\n' +
+            '<td></td>\n' +
+            '<td><form action="#" id="loginForm">\n' +
+            '<button onclick="login();">Войти</button>\n' +
+            '</form></td>\n' +
+            '</tr>';
+    }
+
+    function login() {
+        var userLogin = document.getElementById("u_login").value;
+        var userPassword = document.getElementById("u_password").value;
+
+        var xmlhttp = new XMLHttpRequest();   // new HttpRequest instance
+        xmlhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var result = JSON.parse(this.responseText);
+                if(result.status != "ok" )
+                    document.getElementById("disksList").innerHTML = getLoginForm("Отказ в доступе!");
+                else {
+                    document.getElementById("h2").innerHTML = result.name;
+                    loadMyDisks();
+                }
+            }
+        };
+        xmlhttp.open("POST", "http://localhost:8080/users/login");
+        xmlhttp.setRequestHeader("Content-Type", "application/json");
+        xmlhttp.send(JSON.stringify({login: userLogin, password: userPassword}));
+        document.getElementById("h2").innerHTML += " ждите...";
+    }
+
+    function logout() {
+        var xhttp = new XMLHttpRequest();   // new HttpRequest instance
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var result = JSON.parse(this.responseText);
+                if(result.status == "ok") {
+                    loadMyDisks();
+                }
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/logout");
+        xhttp.send();
+        document.getElementById("h2").innerHTML += " ждите...";
+    }
+
+    function loadMyDisks() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var disks = JSON.parse(this.responseText);
+                var html = ""
+                if(disks.length == 1 && disks[0][0] == -1)
+                    html = getLoginForm("");
+                else {
+                    html = getNavigationBar(1);
+                    if(disks.length == 0 || disks[0][0] == 0)
+                        html += '<tr><td>Список пуст</td></tr>';
+                    else {
+                        document.getElementById("h2").innerHTML = disks[0][3];
+                        html += '<tr>\n' +
+                            '        <th>Наименование</th>\n' +
+                            '        <th colspan="2">Где (у кого) находится</th>\n' +
+                            '   </tr>';
+                        for (var i = 0; i < disks.length; i++) {
+                            var disk = disks[i];
+                            html = html + '<tr><td>' + disk[1] + '</td>\n' +
+                                '        <td colspan="2">' + (disk[4] == null ? ' дома ' : disk[5]) + '</td></tr>';
+
+                        }
+                    }
+                }
+                document.getElementById("disksList").innerHTML = html;
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/findMyDisks", true);
+        xhttp.send();
+    }
+
+    function loadMyTakenDisks() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var disks = JSON.parse(this.responseText);
+                var html = ""
+                if(disks.length == 1 && disks[0][0] == -1)
+                    html = getLoginForm("");
+                else {
+                    html = getNavigationBar(2);
+                    if(disks.length == 0 || disks[0][0] == 0)
+                        html += '<tr><td>Список пуст</td></tr>';
+                    else {
+                        html += '<tr>\n' +
+                            '        <th>Наименование</th>\n' +
+                            '        <th colspan="2">Где (у кого) находится</th>\n' +
+                            '   </tr>';
+                        for (var i = 0; i < disks.length; i++) {
+                            var disk = disks[i];
+                            html = html + '<tr>\n' +
+                                '<td>' + disk[1] + '</td>\n' +
+                                '<td colspan="2">' + disk[5] + '</td>\n' +
+                                '</tr>\n';
+
+                        }
+                    }
+                }
+                document.getElementById("disksList").innerHTML = html;
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/findMyTakenDisks", true);
+        xhttp.send();
+    }
+
+    function loadNotMyTakenDisks() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var disks = JSON.parse(this.responseText);
+                var html = ""
+                if(disks.length == 1 && disks[0][0] == -1)
+                    html = getLoginForm("");
+                else {
+                    html = getNavigationBar(3);
+                    if(disks.length == 0)
+                        html += '<tr><td>Список пуст</td></tr>';
+                    else {
+                        html += '<tr>\n' +
+                            '        <th>Наименование</th>\n' +
+                            '        <th colspan="2">Хозяин диска (у кого взял)</th>\n' +
+                            '   </tr>';
+                        for (var i = 0; i < disks.length; i++) {
+                            var disk = disks[i];
+                            html = html + '<tr>\n' +
+                                '<td>' + disk[1] + '</td>\n' +
+                                '<td>' + disk[3] + '</td>\n' +
+                                '<td class="button">\n' +
+                                '<button onclick="returnDisk(' + disk[0] + ');">Вернуть</button>\n' +
+                                '</td>\n' +
+                                '</tr>\n';
+                        }
+                    }
+                }
+                document.getElementById("disksList").innerHTML = html;
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/findNotMyTakenDisks", true);
+        xhttp.send();
+    }
+
+    function loadFreeDisks() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var disks = JSON.parse(this.responseText);
+                var html = ""
+                if(disks.length == 1 && disks[0][0] == -1)
+                    html = getLoginForm("");
+                else {
+                    html = getNavigationBar(4);
+                    if(disks.length == 0)
+                        html += '<tr><td>Список пуст</td></tr>';
+                    else {
+                        html += '<tr>\n' +
+                            '        <th colspan="2">Владелец / Наименование</th>\n' +
+                            '   </tr>';
+                        var current_user_id = 0;
+                        for (var i = 0; i < disks.length; i++) {
+                            var disk = disks[i];
+                            if(current_user_id != disk[2]) {
+                                html += '<tr>\n' +
+                                    '<td class="user_title" colspan="2">' + disk[3] + '</td>\n' +
+                                    '</tr>\n';
+                                current_user_id = disk[2];
+                            }
+                            html = html + '<tr class="table_free">\n' +
+                                '<td>' + disk[1] + '</td>\n' +
+                                '<td class="button">\n' +
+                                '<button onclick="takeDisk(' + disk[0] + ');">Взять</button>\n' +
+                                '</td>\n' +
+                                '</trclass>\n';
+                        }
+                    }
+                }
+                document.getElementById("disksList").innerHTML = html;
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/findFreeDisks", true);
+        xhttp.send();
+    }
+
+    function returnDisk(diskId) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                loadNotMyTakenDisks();
+            }
+        };
+        xhttp.open("DELETE", "http://localhost:8080/users/returnDisk/" + diskId);
+        xhttp.send();
+    }
+
+    function takeDisk(diskId) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                loadFreeDisks();
+            }
+        };
+        xhttp.open("DELETE", "http://localhost:8080/users/takeDisk/" + diskId);
+        xhttp.send();
+    }
+
+
+/*
+    function searchByLogin() {
+        var login = document.getElementById("search_field").value;
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var user = JSON.parse(this.responseText);
+                var html = '<tr>\n' +
+                    '        <th>User id</th>\n' +
+                    '        <th>User name</th>\n' +
+                    '        <th>User login</th>\n' +
+                    '        <th>User password</th>\n' +
+                    '        <th>Delete</th>\n' +
+                    '    </tr>';
+                html = html + '<tr><td>' + user.id + '</td>\n' +
+                    '        <td>' + user.name + '</td>\n' +
+                    '        <td>' + user.login + '</td>\n' +
+                    '        <td>' + user.password + '</td>' +
+                    '        <td><button onclick="deleteUser(' + user.id + ')">Delete</button></td></tr>';
+                document.getElementById("usersList").innerHTML = html;
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/findByLogin?login=" + login, true);
+        xhttp.send();
+    }
+
+    function deleteUser(userId) {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("DELETE", "http://localhost:8080/users/delete/" + userId, true);
+        xhttp.send();
+    }
+
+    function createUser() {
+        var userName = document.getElementById("user_name").value;
+        var userLogin = document.getElementById("user_login").value;
+        var userPassword = document.getElementById("user_password").value;
+
+        var xmlhttp = new XMLHttpRequest();   // new HttpRequest instance
+        xmlhttp.open("POST", "http://localhost:8080/users/save");
+        xmlhttp.setRequestHeader("Content-Type", "application/json");
+        xmlhttp.send(JSON.stringify({name: userName, login: userLogin, password: userPassword}));
+
+        loadUsers();
+    }
+
+    function loadUsers() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function () {
+            if (this.readyState == 4 && this.status == 200) {
+                var users = JSON.parse(this.responseText);
+                var html = '<tr>\n' +
+                    '        <th>User id</th>\n' +
+                    '        <th>User name</th>\n' +
+                    '        <th>User login</th>\n' +
+                    '        <th>User password</th>\n' +
+                    '        <th>Delete</th>\n' +
+                    '    </tr>';
+                for (var i = 0; i < users.length; i++) {
+                    var user = users[i];
+                    console.log(user);
+                    html = html + '<tr><td>' + user.id + '</td>\n' +
+                        '        <td>' + user.name + '</td>\n' +
+                        '        <td>' + user.login + '</td>\n' +
+                        '        <td>' + user.password + '</td>' +
+                        '        <td><button onclick="deleteUser(' + user.id + ')">Delete</button></td></tr>';
+
+                }
+                document.getElementById("usersList").innerHTML = html;
+            }
+        };
+        xhttp.open("GET", "http://localhost:8080/users/findAll", true);
+        xhttp.send();
+    }
+*/
+    loadMyDisks();
+</script>
+</body>
+</html>
