@@ -19,10 +19,6 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query(value="SELECT COUNT(*) FROM USERS", nativeQuery = true)
     Integer getRowsUsers();
 
-    // получение объекта List<Object[]> с единственным элементом = code
-    @Query(value="SELECT COUNT(*)*0+(:code) FROM USERS", nativeQuery = true)
-    List<Object[]> getNotAccessCode(@Param("code") int code);
-
     // Добавить user-а (для автозаполнения)
     @Transactional
     @Modifying

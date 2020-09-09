@@ -5,7 +5,10 @@ import com.javandl.spring_crud.repository.UserRepository;
 import lombok.extern.java.Log;
 import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import javax.servlet.http.HttpSession;
 import java.util.List;
@@ -22,8 +25,7 @@ public class DefaultUserService implements UserService {
 
     // автозаполнение базы
     private void autoFillDb() {
-
-        if(userRepository.getRowsUsers() == 0) {
+       if(userRepository.getRowsUsers() == 0) {
             userRepository.addToUsers(1, "Дмитрий", "ndl", "123");
             userRepository.addToUsers(2, "Иван", "ivan", "123");
             userRepository.addToUsers(3, "Света", "sveta", "123");
@@ -52,59 +54,46 @@ public class DefaultUserService implements UserService {
         }
     }
 
-    // Сессионный секъюрити атрибут CURRENT_USER_ID: если =null то =0
+    // Проверка авторизации
     private int getCurrentUserId() {
-
+        // если CURRENT_USER_ID не создан (новая сессия) - создаем его  со значением 0
         if (httpSession.getAttribute("CURRENT_USER_ID") == null)
             httpSession.setAttribute("CURRENT_USER_ID", 0);
+        // если CURRENT_USER_ID == 0 - нет авторизации (класс исключения в конце этого файла)
+        if((int)httpSession.getAttribute("CURRENT_USER_ID") == 0)
+            throw new UnauthorizedAccessException();
+
         return (int)httpSession.getAttribute("CURRENT_USER_ID");
     }
 
     // Список всех моих дисков
     @Override
     public List<Object[]> findMyDisks() {
-
-        autoFillDb();   // при первом обращении - автозаполнение базы
-        // если есть авотризация - выдаем список, иначе -1
-        return getCurrentUserId() != 0 ?
-                userRepository.findMyDisks(getCurrentUserId(),false) :
-                userRepository.getNotAccessCode(-1);
+        autoFillDb();               // при первом обращении - автозаполнение базы
+        return userRepository.findMyDisks(getCurrentUserId(),false);
     }
 
     // Список взятых у меня дисков
     @Override
     public List<Object[]> findMyTakenDisks() {
-
-        // если есть авотризация - выдаем список, иначе -1
-        return getCurrentUserId() != 0 ?
-                userRepository.findMyDisks(getCurrentUserId(),true) :
-                userRepository.getNotAccessCode(-1);
+        return userRepository.findMyDisks(getCurrentUserId(),true);
     }
 
     // Список мною взятых дисков
     @Override
     public List<Object[]> findNotMyTakenDisks() {
-
-        // если есть авотризация - выдаем список, иначе -1
-        return getCurrentUserId() != 0 ?
-                userRepository.findNotMyTakenDisks(getCurrentUserId()) :
-                userRepository.getNotAccessCode(-1);
+        return userRepository.findNotMyTakenDisks(getCurrentUserId());
     }
 
     // Список свободных дисков
     @Override
     public List<Object[]> findFreeDisks() {
-
-        // если есть авотризация - выдаем список, иначе -1
-        return getCurrentUserId() != 0 ?
-                userRepository.findFreeDisks(getCurrentUserId()) :
-                userRepository.getNotAccessCode(-1);
+        return userRepository.findFreeDisks(getCurrentUserId());
     }
 
     // проверка логина и пароля при входе
     @Override
     public String validateLoginAndPassword(UserDto userDto) {
-
         List<Object[]> result = userRepository.findUserByLogin(userDto.getLogin());
         if (result.isEmpty()) {
             httpSession.setAttribute("CURRENT_USER_ID", 0);
@@ -124,7 +113,7 @@ public class DefaultUserService implements UserService {
     // выход из системы
     @Override
     public String logoutUser() {
-
+        getCurrentUserId(); // чтобы при отсутствии авторизации приходил статус 404
         httpSession.setAttribute("CURRENT_USER_ID", 0);
         return "{\"status\":\"ok\"}";
     }
@@ -132,15 +121,21 @@ public class DefaultUserService implements UserService {
     // взять диск
     @Override
     public void takeDisk(Integer diskId) {
-
         userRepository.addToUsersTakenDisks(diskId, getCurrentUserId());
     }
 
     // вернуть диск
     @Override
     public void returnDisk(Integer diskId) {
-
+        getCurrentUserId(); // Для проверки авторизации
         userRepository.deleteFromUsersTakenDisks(diskId);
     }
 
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    class UnauthorizedAccessException extends RuntimeException {
+
+        public UnauthorizedAccessException() {
+            super("Unauthorized Access!!!");
+        }
+    }
 }
